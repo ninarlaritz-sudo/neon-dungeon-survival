@@ -2,60 +2,59 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Neon Dungeon</title>
+<title>Cyber Run: System Breach</title>
 <style>
 body {
     margin: 0;
-    background: black;
     overflow: hidden;
-    font-family: Arial;
+    background: black;
+    font-family: monospace;
     color: white;
 }
 
 canvas {
     display: block;
     margin: 0 auto;
-    background: radial-gradient(circle at center, #111, #000);
+    background: radial-gradient(circle, #0a0a0a, #000);
 }
 
 #ui {
     position: absolute;
     top: 10px;
     left: 10px;
-    font-size: 18px;
+    font-size: 14px;
 }
 
 #menu {
     position: absolute;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.8);
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    flex-direction: column;
+    background: rgba(0,0,0,0.85);
 }
 
 button {
-    padding: 12px 20px;
-    font-size: 18px;
-    cursor: pointer;
-    border: none;
-    background: #00ffff;
-    color: black;
     margin-top: 10px;
+    padding: 10px 20px;
+    background: #00ffcc;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
 }
 </style>
 </head>
 <body>
 
 <div id="menu">
-    <h1>NEON DUNGEON</h1>
-    <p>Survive the waves</p>
-    <button onclick="startGame()">Start</button>
+    <h1>CYBER RUN</h1>
+    <p>SYSTEM BREACH INITIATED</p>
+    <button onclick="startGame()">START</button>
 </div>
 
-<div id="ui">Score: 0 | Health: 100</div>
+<div id="ui"></div>
 <canvas id="game"></canvas>
 
 <script>
@@ -65,15 +64,18 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let player, enemies, bullets, score, health, gameRunning;
+let player, enemies, particles, score, health, speedBoost, damage, gameOver, shake;
 
 function reset() {
-    player = { x: canvas.width/2, y: canvas.height/2, size: 18, speed: 5 };
+    player = { x: canvas.width/2, y: canvas.height/2, size: 16, speed: 4 };
     enemies = [];
-    bullets = [];
+    particles = [];
     score = 0;
     health = 100;
-    gameRunning = true;
+    speedBoost = 0;
+    damage = 1;
+    gameOver = false;
+    shake = 0;
 }
 
 function startGame() {
@@ -83,7 +85,7 @@ function startGame() {
 }
 
 document.addEventListener("keydown", e => {
-    if (!gameRunning) return;
+    if (gameOver) return;
 
     if (e.key === "w") player.y -= player.speed;
     if (e.key === "s") player.y += player.speed;
@@ -92,58 +94,114 @@ document.addEventListener("keydown", e => {
 });
 
 document.addEventListener("click", e => {
-    if (!gameRunning) return;
+    if (gameOver) return;
 
-    const angle = Math.atan2(
-        e.clientY - player.y,
-        e.clientX - player.x
-    );
+    enemies.forEach(en => {
+        const d = Math.hypot(en.x - e.clientX, en.y - e.clientY);
+        if (d < 40) {
+            en.hp -= damage;
+            shake = 10;
 
-    bullets.push({
-        x: player.x,
-        y: player.y,
-        dx: Math.cos(angle) * 8,
-        dy: Math.sin(angle) * 8
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x: en.x,
+                    y: en.y,
+                    vx: (Math.random()-0.5)*4,
+                    vy: (Math.random()-0.5)*4,
+                    life: 20
+                });
+            }
+        }
     });
 });
 
 function spawnEnemy() {
-    const edge = Math.floor(Math.random() * 4);
-    let x, y;
-
-    if (edge === 0) { x = 0; y = Math.random() * canvas.height; }
-    if (edge === 1) { x = canvas.width; y = Math.random() * canvas.height; }
-    if (edge === 2) { x = Math.random() * canvas.width; y = 0; }
-    if (edge === 3) { x = Math.random() * canvas.width; y = canvas.height; }
-
-    enemies.push({ x, y, size: 18, speed: 1 + Math.random() * 1.5 });
+    enemies.push({
+        x: Math.random()*canvas.width,
+        y: -20,
+        hp: 3,
+        speed: 1 + Math.random()*1.5
+    });
 }
 
 setInterval(() => {
-    if (gameRunning) spawnEnemy();
+    if (!gameOver) spawnEnemy();
 }, 900);
 
 function update() {
-    if (!gameRunning) return;
+    if (gameOver) return;
 
     score++;
-    document.getElementById("ui").innerText =
-        `Score: ${score} | Health: ${health}`;
 
-    bullets.forEach(b => {
-        b.x += b.dx;
-        b.y += b.dy;
-    });
+    if (health <= 0) gameOver = true;
 
     enemies.forEach(e => {
         const angle = Math.atan2(player.y - e.y, player.x - e.x);
         e.x += Math.cos(angle) * e.speed;
         e.y += Math.sin(angle) * e.speed;
 
-        const dist = Math.hypot(player.x - e.x, player.y - e.y);
-        if (dist < 18) {
+        if (Math.hypot(player.x - e.x, player.y - e.y) < 20) {
             health -= 1;
         }
+    });
 
-        bullets.forEach(b => {
-            const d = Math.hypot(b.x - e.x, b.y - e.y);
+    enemies = enemies.filter(e => e.hp > 0);
+
+    particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+    });
+
+    particles = particles.filter(p => p.life > 0);
+
+    if (shake > 0) shake--;
+}
+
+function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    ctx.save();
+    if (shake > 0) {
+        ctx.translate(Math.random()*6, Math.random()*6);
+    }
+
+    // player
+    ctx.fillStyle = "#00ffcc";
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "#00ffcc";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+
+    // enemies
+    enemies.forEach(e => {
+        ctx.fillStyle = "#ff0044";
+        ctx.fillRect(e.x, e.y, 16, 16);
+    });
+
+    // particles
+    particles.forEach(p => {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(p.x, p.y, 2, 2);
+    });
+
+    ctx.restore();
+
+    document.getElementById("ui").innerHTML =
+        `Score: ${score}<br>Health: ${health}<br>Enemies: ${enemies.length}`;
+
+    if (gameOver) {
+        ctx.fillStyle = "white";
+        ctx.font = "40px monospace";
+        ctx.fillText("SYSTEM BREACH FAILED", canvas.width/2 - 200, canvas.height/2);
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+</script>
+
+</body>
+</html>
